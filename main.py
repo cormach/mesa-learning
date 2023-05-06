@@ -1,4 +1,5 @@
 import mesa
+import numpy as np
 
 class Sugar(mesa.Agent):
     '''
@@ -36,10 +37,17 @@ class SugarscapeG1mt(mesa.Model):
     grom Growing Artificial Societies by Axtell and Epstein
     '''
 
-    def __init__(self):
-        self.spice = Spice()
-        self.sugar = Sugar()
-        self.trader = Trader()
+    def __init__(self, width=50, height=50):
+        self.width = width
+        self.height = height
+
+        self.grid = mesa.space.MultiGrid(self.width, self.height, torus = False)
+    
+    def sugar_distribution(self, file_address):
+        sugar_distribution = np.genfromtxt(file_address)
+
+
 
 if __name__=="__main__":
     model = SugarscapeG1mt()
+    model.sugar_distribution("sugar-map.txt")
