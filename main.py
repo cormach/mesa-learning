@@ -13,6 +13,12 @@ class Sugar(mesa.Agent):
         self.pos = pos
         self.amount = max_sugar
         self.max_sugar = max_sugar
+    
+    def step(self):
+        '''
+        Sugar Growth function
+        '''
+        self.amount = min([self.max_sugar, self.amount+1])
 
 class Spice(mesa.Agent):
     '''
@@ -26,6 +32,9 @@ class Spice(mesa.Agent):
         self.pos = pos
         self.amount = max_spice
         self.max_spice = max_spice
+        
+    def step(self):
+        self.amount = min([self.max_spice, self.amount +1])
         
 class Trader(mesa.Agent):
     '''
@@ -45,7 +54,84 @@ class Trader(mesa.Agent):
         self.metabolism_sugar= metabolism_sugar
         self.metabolism_spice=metabolism_spice
         self.vision=vision
+    
+    def sugar(self, pos):
+        '''
+        used in self.get_sugar_amount()
+        '''
+        this_cell = self.model.grid.get_cell_list_contents(pos)
+        for agent in this_cell:
+            if type(agent) is Sugar:
+                return agent
+        return None
+    
+    def get_sugar_amount(self, pos):
+        '''
+        used in self.move() as part of self.calculate_welfare
+        '''
+        sugar_patch = self.get_sugar(pos)
+        if sugar_patch:
+            return sugar_patch.amount
+        return 0
         
+    def spice(self, pos):
+        '''
+        used in self.get_spice_amount()
+        '''
+        this_cell = self.model.grid.get_cell_list_contents(pos)
+        for agent in this_cell:
+            if type(agent) is Spice:
+                return agent
+        return None
+    
+    def get_spice_amount(self, pos):
+        '''
+        used in self.move() as part of self.calculate_welfare
+        '''
+        spice_patch = self.get_spice(pos)
+        if spice_patch:
+            return spice_patch.amount
+        return 0
+    
+    def is_occupied_by_other(self, pos):
+        '''
+        helper function to identify whether the target cell is occupied
+        '''
+        if pos == self.pos:
+            return False
+        this_cell = self.model.grid.get_cell_list_contents(pos)
+        for a in this_cell:
+            if isinstance(a, Trader):
+                return True
+        return False
+    
+    def welfare(self, sugar, spice):
+        '''
+        helper function part 2 self.move()
+        '''
+        m_total = self.metabolism_sugar + self.metabolism_spice
+        return sugar**(self.metabolism_sugar/m_total)*spice**(self.metabolism_spice/m_total)
+    
+    def move(self):
+        '''
+        identifies the optimal move for the trader agent
+        for each step
+        1 - identify all possible moves
+        2 - determine which move maximises welfare
+        3 - identify the nearest best option
+        4 - move
+        '''
+        
+        neighbours = [ i for i in self.model.grid.get_neighborhood(
+            self.pos, self.moore, include_center =True, radius = self.vision
+        ) if not self.is_occupied_by_other(i)]
+        
+        welfare_grid = [
+            self.calculate_welfare(
+                self.sugar + self.get_sugar_amount(pos), 
+                self.spice + self.get_spice_amount(pos)) 
+            for pos in neighbours
+        ]
 
 class SugarscapeG1mt(mesa.Model):
     '''
@@ -122,9 +208,25 @@ class SugarscapeG1mt(mesa.Model):
             self.grid.place_agent(trader, (x,y))
             self.schedule.add(trader)
             agent_id +=1
+        
+    def step(self):
+        '''
+        Unique step function that does staged activation of sugar and spice
+        and then randomly activates traders
+        '''
+        [sugar.step() for sugar in self.schedule.agents_by_type[Sugar].values()]
+        [spice.step() for spice in self.schedule.agents_by_type[Spice].values()]
+        trader_shuffle = list(self.schedule.agents_by_type[Trader].values())
+        self.random.shuffle(trader_shuffle)
+        [agent.move() for agent in trader_shuffle]
+        
+        
+        self.schedule.steps +=1
             
-            
-    
+    def run_model(self, step_count = 1000):
+        
+        for i in range(step_count):
+            self.step()
 
 
 if __name__=="__main__":
