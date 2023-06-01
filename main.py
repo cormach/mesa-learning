@@ -1,5 +1,6 @@
 import mesa
 import numpy as np
+import math
 
 class Sugar(mesa.Agent):
     '''
@@ -132,6 +133,23 @@ class Trader(mesa.Agent):
                 self.spice + self.get_spice_amount(pos)) 
             for pos in neighbours
         ]
+        
+        max_welfare = max(welfare_grid)
+        candidate_indices = [i for i in len(welfare_grid)
+                          if math.isclose(welfare_grid[i], max_welfare, rel_tol=1e-02)]
+        candidate_move = [neighbours[i] for i in candidate_indices]
+        current_position = np.array(self.pos)
+        distance = [
+            np.linalg.norm(current_position - np.array(pos)) for pos in candidate_move
+        ]
+        min_distance = min(distance)
+        candidates_min_max = [
+            neighbours[i] for i in range(len(distance)) if 
+            math.isclose(distance[i], min_distance, 1e-02)
+            ]
+        
+        self.model.grid.move_agent(self, self.random.choice(candidates_min_max))
+        
 
 class SugarscapeG1mt(mesa.Model):
     '''
