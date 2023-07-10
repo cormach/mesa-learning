@@ -150,6 +150,20 @@ class Trader(mesa.Agent):
         
         self.model.grid.move_agent(self, self.random.choice(candidates_min_max))
         
+    def eat(self):
+        sugar_patch = self.get_sugar_amount(self.pos)
+        
+        if sugar_patch:
+            self.sugar += sugar_patch.amount
+            sugar_patch.amount = 0
+        self.sugar -= self.metabolism_sugar
+        
+        spice_patch = self.get_spice_amount(self.pos)
+        
+        if spice_patch:
+            self.spice += spice_patch.amount
+            spice_patch.amount = 0
+        self.spice -= self.metabolism_spice
 
 class SugarscapeG1mt(mesa.Model):
     '''
@@ -236,7 +250,10 @@ class SugarscapeG1mt(mesa.Model):
         [spice.step() for spice in self.schedule.agents_by_type[Spice].values()]
         trader_shuffle = list(self.schedule.agents_by_type[Trader].values())
         self.random.shuffle(trader_shuffle)
-        [agent.move() for agent in trader_shuffle]
+        for agent in trader_shuffle:
+            agent.move()
+            agent.eat()
+            agent.maybe_die()
         
         
         self.schedule.steps +=1
