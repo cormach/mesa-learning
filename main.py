@@ -10,7 +10,7 @@ class Sugar(mesa.Agent):
     '''
     
     def __init__(self, unique_id, model, pos, max_sugar):
-        super().__init(unique_id, model)
+        super().__init__(unique_id, model)
         self.pos = pos
         self.amount = max_sugar
         self.max_sugar = max_sugar
@@ -56,11 +56,12 @@ class Trader(mesa.Agent):
         self.metabolism_spice=metabolism_spice
         self.vision=vision
     
-    def sugar(self, pos):
+    def get_sugar(self, pos):
         '''
         used in self.get_sugar_amount()
         '''
         this_cell = self.model.grid.get_cell_list_contents(pos)
+
         for agent in this_cell:
             if type(agent) is Sugar:
                 return agent
@@ -70,12 +71,13 @@ class Trader(mesa.Agent):
         '''
         used in self.move() as part of self.calculate_welfare
         '''
+
         sugar_patch = self.get_sugar(pos)
         if sugar_patch:
             return sugar_patch.amount
         return 0
         
-    def spice(self, pos):
+    def get_spice(self, pos):
         '''
         used in self.get_spice_amount()
         '''
@@ -106,13 +108,21 @@ class Trader(mesa.Agent):
                 return True
         return False
     
-    def welfare(self, sugar, spice):
+    def calculate_welfare(self, sugar, spice):
         '''
         helper function part 2 self.move()
         '''
         m_total = self.metabolism_sugar + self.metabolism_spice
         return sugar**(self.metabolism_sugar/m_total)*spice**(self.metabolism_spice/m_total)
     
+    def is_starved(self):
+        '''
+        Helper function for self.maybe_die()
+        '''
+
+        return (self.sugar <= 0) or (self.spice <= 0)
+
+
     def move(self):
         '''
         identifies the optimal move for the trader agent
@@ -135,8 +145,9 @@ class Trader(mesa.Agent):
         ]
         
         max_welfare = max(welfare_grid)
-        candidate_indices = [i for i in len(welfare_grid)
-                          if math.isclose(welfare_grid[i], max_welfare, rel_tol=1e-02)]
+
+        candidate_indices = [i for i in range(len(welfare_grid))
+                          if math.isclose(welfare_grid[i], max_welfare)]
         candidate_move = [neighbours[i] for i in candidate_indices]
         current_position = np.array(self.pos)
         distance = [
@@ -145,25 +156,34 @@ class Trader(mesa.Agent):
         min_distance = min(distance)
         candidates_min_max = [
             neighbours[i] for i in range(len(distance)) if 
-            math.isclose(distance[i], min_distance, 1e-02)
+            math.isclose(distance[i], min_distance)
             ]
         
         self.model.grid.move_agent(self, self.random.choice(candidates_min_max))
         
     def eat(self):
-        sugar_patch = self.get_sugar_amount(self.pos)
+        sugar_patch = self.get_sugar(self.pos)
         
         if sugar_patch:
             self.sugar += sugar_patch.amount
             sugar_patch.amount = 0
         self.sugar -= self.metabolism_sugar
         
-        spice_patch = self.get_spice_amount(self.pos)
+        spice_patch = self.get_spice(self.pos)
         
         if spice_patch:
             self.spice += spice_patch.amount
             spice_patch.amount = 0
         self.spice -= self.metabolism_spice
+    
+    def maybe_die(self):
+        '''
+        Function to remove Traders who have consumed all their sugar or spice
+        '''
+
+        if self.is_starved(): 
+            self.model.grid.remove_agent(self)
+            self.model.schedule.remove(self)
 
 class SugarscapeG1mt(mesa.Model):
     '''
@@ -194,7 +214,7 @@ class SugarscapeG1mt(mesa.Model):
 
         self.grid = mesa.space.MultiGrid(self.width, self.height, torus = False)
         
-        self.schedule = mesa.time.RandomActivationbyType(self)
+        self.schedule = mesa.time.RandomActivationByType(self)
     
         self.sugar_distribution = np.genfromtxt(file_address)
         self.spice_distribution = np.flip(self.sugar_distribution,1)
@@ -265,5 +285,5 @@ class SugarscapeG1mt(mesa.Model):
 
 
 if __name__=="__main__":
-    model = SugarscapeG1mt()
-    model.sugar_distribution("sugar-map.txt")
+    model = SugarscapeG1mt(file_address="sugar-map.txt")
+    model.run_model(step_count=1)
